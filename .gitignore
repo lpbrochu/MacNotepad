@@ -1,0 +1,14 @@
+.DS_Store
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Build outputs
+build/
+DerivedData/
+
+# Xcode / editor state
+*.xcuserstate
+*.xcuserdata/
+.vscode/
