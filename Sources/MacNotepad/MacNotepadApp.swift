@@ -13,6 +13,9 @@ struct MacNotepadApp: App {
                 .frame(minWidth: 520, minHeight: 360)
                 .onAppear {
                     NSWindow.allowsAutomaticWindowTabbing = false
+                    appDelegate.shouldTerminateHandler = {
+                        document.confirmSaveIfNeeded()
+                    }
                     appDelegate.openURLHandler = { url in
                         document.openDocument(at: url)
                     }
@@ -41,10 +44,15 @@ struct MacNotepadApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var openURLHandler: ((URL) -> Void)?
+    var shouldTerminateHandler: (() -> Bool)?
     private var pendingURLs: [URL] = []
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        shouldTerminateHandler?() == false ? .terminateCancel : .terminateNow
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {

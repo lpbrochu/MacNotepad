@@ -23,8 +23,6 @@ final class NotepadDocument: ObservableObject {
         }
     }
     @Published var selection = NSRange(location: 0, length: 0)
-    @Published var line = 1
-    @Published var column = 1
     @Published var characterCount = 0
     @Published var showsFindBar = false
     @Published var findText = ""
@@ -44,7 +42,8 @@ final class NotepadDocument: ObservableObject {
     }
 
     var statusText: String {
-        "Ln \(line), Col \(column)   \(characterCount) characters   \(fileURL?.path(percentEncoded: false) ?? "Unsaved")"
+        let position = cursorPosition
+        return "Ln \(position.line), Col \(position.column)   \(characterCount) characters   \(fileURL?.path(percentEncoded: false) ?? "Unsaved")"
     }
 
     var selectedFontOption: EditorFontOption {
@@ -52,12 +51,12 @@ final class NotepadDocument: ObservableObject {
     }
 
     func newDocument() {
-        guard confirmDiscardIfNeeded() else { return }
+        guard confirmSaveIfNeeded() else { return }
         load(text: "", from: nil, dirty: false)
     }
 
     func openDocument() {
-        guard confirmDiscardIfNeeded() else { return }
+        guard confirmSaveIfNeeded() else { return }
 
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.plainText, .text, .utf8PlainText]
@@ -69,7 +68,7 @@ final class NotepadDocument: ObservableObject {
     }
 
     func openDocument(at url: URL, shouldConfirmDiscard: Bool = true) {
-        guard !shouldConfirmDiscard || confirmDiscardIfNeeded() else { return }
+        guard !shouldConfirmDiscard || confirmSaveIfNeeded() else { return }
 
         let didStartAccessing = url.startAccessingSecurityScopedResource()
         defer {
@@ -119,8 +118,10 @@ final class NotepadDocument: ObservableObject {
     }
 
     func updateSelection(_ range: NSRange) {
-        selection = range
-        updateLineAndColumn()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.selection != range else { return }
+            self.selection = range
+        }
     }
 
     func findNext() {
@@ -181,7 +182,6 @@ final class NotepadDocument: ObservableObject {
         isDirty = dirty
         isLoading = false
         updateCounts()
-        updateLineAndColumn()
     }
 
     private func write(to url: URL) {
@@ -195,7 +195,7 @@ final class NotepadDocument: ObservableObject {
         }
     }
 
-    private func confirmDiscardIfNeeded() -> Bool {
+    func confirmSaveIfNeeded() -> Bool {
         guard isDirty else { return true }
 
         let alert = NSAlert()
@@ -257,7 +257,6 @@ final class NotepadDocument: ObservableObject {
         }
 
         selection = match
-        updateLineAndColumn()
         transientMessage = "Match found"
     }
 
@@ -266,14 +265,13 @@ final class NotepadDocument: ObservableObject {
         mutable.replaceCharacters(in: range, with: replacement)
         text = mutable as String
         selection = NSRange(location: range.location, length: (replacement as NSString).length)
-        updateLineAndColumn()
     }
 
     private func updateCounts() {
         characterCount = text.count
     }
 
-    private func updateLineAndColumn() {
+    private var cursorPosition: (line: Int, column: Int) {
         let source = text as NSString
         let cursor = min(selection.location, source.length)
         var currentLine = 1
@@ -296,8 +294,7 @@ final class NotepadDocument: ObservableObject {
             index += 1
         }
 
-        line = currentLine
-        column = cursor - lineStart + 1
+        return (currentLine, cursor - lineStart + 1)
     }
 
     private func showError(_ message: String, informativeText: String) {

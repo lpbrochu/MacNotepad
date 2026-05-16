@@ -47,6 +47,11 @@ struct PlainTextEditor: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? NSTextView else { return }
 
+        context.coordinator.isApplyingUpdate = true
+        defer {
+            context.coordinator.isApplyingUpdate = false
+        }
+
         if textView.string != text {
             textView.string = text
         }
@@ -87,6 +92,7 @@ struct PlainTextEditor: NSViewRepresentable {
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         var parent: PlainTextEditor
+        var isApplyingUpdate = false
         weak var textView: NSTextView?
 
         init(_ parent: PlainTextEditor) {
@@ -94,11 +100,13 @@ struct PlainTextEditor: NSViewRepresentable {
         }
 
         func textDidChange(_ notification: Notification) {
+            guard !isApplyingUpdate else { return }
             guard let textView = notification.object as? NSTextView else { return }
             parent.text = textView.string
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
+            guard !isApplyingUpdate else { return }
             guard let textView = notification.object as? NSTextView else { return }
             parent.onSelectionChange(textView.selectedRange())
         }

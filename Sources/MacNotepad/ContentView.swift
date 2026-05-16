@@ -42,10 +42,59 @@ struct ContentView: View {
             }
         }
         .navigationTitle(document.displayTitle)
+        .background {
+            WindowCloseHandler {
+                document.confirmSaveIfNeeded()
+            }
+        }
         .onAppear {
             editorFocused = true
         }
         .animation(.snappy(duration: 0.18), value: document.showsFindBar)
+    }
+}
+
+private struct WindowCloseHandler: NSViewRepresentable {
+    let shouldClose: () -> Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(shouldClose: shouldClose)
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            context.coordinator.attach(to: view.window)
+        }
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        context.coordinator.shouldClose = shouldClose
+        DispatchQueue.main.async {
+            context.coordinator.attach(to: view.window)
+        }
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, NSWindowDelegate {
+        var shouldClose: () -> Bool
+        private weak var window: NSWindow?
+
+        init(shouldClose: @escaping () -> Bool) {
+            self.shouldClose = shouldClose
+        }
+
+        func attach(to window: NSWindow?) {
+            guard self.window !== window else { return }
+            self.window?.delegate = nil
+            self.window = window
+            window?.delegate = self
+        }
+
+        func windowShouldClose(_ sender: NSWindow) -> Bool {
+            shouldClose()
+        }
     }
 }
 
